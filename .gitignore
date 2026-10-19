@@ -1,0 +1,16 @@
+# 编译产物
+build/
+firmware/Debug/
+
+# CCS / Eclipse
+.metadata/
+*.launch
+*.log
+
+# Python
+__pycache__/
+*.pyc
+
+# 临时文件
+*.tmp
+*.bak

@@ -1,0 +1,6 @@
+﻿# 统一换行：源码用 LF，Windows 脚本检出时可转 CRLF
+* text=auto
+*.png binary
+*.jpg binary
+*.hex binary
+*.out binary

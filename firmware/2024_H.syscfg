@@ -1,0 +1,165 @@
+/**
+ * 2024 电赛 H 题 —— 自动行驶小车
+ * 主控：立创·地猛星 MSPM0G3507 (LQFP-64)
+ *
+ * 说明：
+ *  - 时钟：内部 SYSOSC 32MHz（不依赖板载晶振，任何地猛星都能跑）
+ *  - 调试串口 UART0 走板载 CH340E（PA10/PA11），插 USB-C 即可看数据
+ *  - 陀螺仪 UART1（PA8/PA9），OLED I2C1（PB2/PB3）
+ *  - 电机 PWM  TIMG0 CCP0/CCP1（PA12/PA13），20kHz
+ *  - 若某个引脚在你的地猛星上被板载器件占用，直接在 SysConfig GUI 里改引脚，
+ *    代码全部使用这里生成宏名，不需要改 C 源码。
+ *
+ * @cliArgs --device "MSPM0G350X" --package "LQFP-64(PM)" --part "Default" --product "mspm0_sdk@2.11.00.07"
+ * @v2CliArgs --device "MSPM0G3507" --package "LQFP-64(PM)" --product "mspm0_sdk@2.11.00.07"
+ * @versions {"tool":"1.26.2+4477"}
+ */
+
+const GPIO   = scripting.addModule("/ti/driverlib/GPIO", {}, false);
+const SYSCTL = scripting.addModule("/ti/driverlib/SYSCTL");
+
+/* ------------------------------------------------------------------ */
+/* 电机方向 / 使能：TB6612                                             */
+/* ------------------------------------------------------------------ */
+const GPIO_MOTOR = GPIO.addInstance();
+GPIO_MOTOR.$name = "MOTOR";
+GPIO_MOTOR.associatedPins.create(5);
+GPIO_MOTOR.associatedPins[0].$name       = "AIN1";
+GPIO_MOTOR.associatedPins[0].pin.$assign = "PB0";
+GPIO_MOTOR.associatedPins[1].$name       = "AIN2";
+GPIO_MOTOR.associatedPins[1].pin.$assign = "PB1";
+GPIO_MOTOR.associatedPins[2].$name       = "BIN1";
+GPIO_MOTOR.associatedPins[2].pin.$assign = "PB4";
+GPIO_MOTOR.associatedPins[3].$name       = "BIN2";
+GPIO_MOTOR.associatedPins[3].pin.$assign = "PB5";
+GPIO_MOTOR.associatedPins[4].$name       = "STBY";
+GPIO_MOTOR.associatedPins[4].pin.$assign = "PB6";
+
+/* ------------------------------------------------------------------ */
+/* 编码器：AB 相，内部上拉，双边沿中断                                  */
+/* ------------------------------------------------------------------ */
+const GPIO_ENC = GPIO.addInstance();
+GPIO_ENC.$name = "ENC";
+GPIO_ENC.associatedPins.create(4);
+const encPins = ["PA16", "PA17", "PA24", "PA25"];
+const encNames = ["L_A", "L_B", "R_A", "R_B"];
+for (let i = 0; i < 4; i++) {
+    GPIO_ENC.associatedPins[i].$name            = encNames[i];
+    GPIO_ENC.associatedPins[i].pin.$assign      = encPins[i];
+    GPIO_ENC.associatedPins[i].direction        = "INPUT";
+    GPIO_ENC.associatedPins[i].internalResistor = "PULL_UP";
+    GPIO_ENC.associatedPins[i].interruptEn      = true;
+    GPIO_ENC.associatedPins[i].polarity         = "RISE_FALL";
+}
+
+/* ------------------------------------------------------------------ */
+/* 8 路数字灰度：PB8..PB15                                             */
+/* ------------------------------------------------------------------ */
+const GPIO_GRAY = GPIO.addInstance();
+GPIO_GRAY.$name = "GRAY";
+GPIO_GRAY.associatedPins.create(8);
+for (let i = 0; i < 8; i++) {
+    GPIO_GRAY.associatedPins[i].$name            = "CH" + i;
+    GPIO_GRAY.associatedPins[i].pin.$assign      = "PB" + (8 + i);
+    GPIO_GRAY.associatedPins[i].direction        = "INPUT";
+    GPIO_GRAY.associatedPins[i].internalResistor = "PULL_DOWN";
+}
+
+/* ------------------------------------------------------------------ */
+/* 按键：低有效，内部上拉                                              */
+/* ------------------------------------------------------------------ */
+const GPIO_KEY = GPIO.addInstance();
+GPIO_KEY.$name = "KEY";
+GPIO_KEY.associatedPins.create(4);
+const keyPins  = ["PA22", "PA23", "PA26", "PA27"];
+const keyNames = ["K1", "K2", "K3", "K4"];
+for (let i = 0; i < 4; i++) {
+    GPIO_KEY.associatedPins[i].$name            = keyNames[i];
+    GPIO_KEY.associatedPins[i].pin.$assign      = keyPins[i];
+    GPIO_KEY.associatedPins[i].direction        = "INPUT";
+    GPIO_KEY.associatedPins[i].internalResistor = "PULL_UP";
+}
+
+/* ------------------------------------------------------------------ */
+/* 声光提示：板载 LED(PA14) + 外接 LED(PA15) + 有源蜂鸣器(PB7)          */
+/* ------------------------------------------------------------------ */
+const GPIO_UI = GPIO.addInstance();
+GPIO_UI.$name = "UI";
+GPIO_UI.associatedPins.create(3);
+GPIO_UI.associatedPins[0].$name       = "LED1";
+GPIO_UI.associatedPins[0].pin.$assign = "PA14";
+GPIO_UI.associatedPins[1].$name       = "LED2";
+GPIO_UI.associatedPins[1].pin.$assign = "PA15";
+GPIO_UI.associatedPins[2].$name       = "BEEP";
+GPIO_UI.associatedPins[2].pin.$assign = "PB7";
+
+/* ------------------------------------------------------------------ */
+/* 电机 PWM：TIMG0，32MHz / 1600 = 20kHz                               */
+/* ------------------------------------------------------------------ */
+const PWM    = scripting.addModule("/ti/driverlib/PWM", {}, false);
+const PWM_M  = PWM.addInstance();
+PWM_M.$name                      = "MOTOR_PWM";
+PWM_M.peripheral.$assign         = "TIMG0";
+PWM_M.peripheral.ccp0Pin.$assign = "PA12";
+PWM_M.peripheral.ccp1Pin.$assign = "PA13";
+PWM_M.clockPrescale              = 1;
+PWM_M.timerCount                 = 1600;
+PWM_M.PWM_CHANNEL_0.$name        = "LEFT";
+PWM_M.PWM_CHANNEL_0.dutyCycle    = 0;
+PWM_M.PWM_CHANNEL_1.$name        = "RIGHT";
+PWM_M.PWM_CHANNEL_1.dutyCycle    = 0;
+
+/* ------------------------------------------------------------------ */
+/* 陀螺仪 JY61P / WT61：UART1 115200                                   */
+/* ------------------------------------------------------------------ */
+const UART   = scripting.addModule("/ti/driverlib/UART", {}, false);
+const UART_G = UART.addInstance();
+UART_G.$name                    = "GYRO_UART";
+UART_G.targetBaudRate           = 115200;
+UART_G.enableFIFO               = true;
+UART_G.rxFifoThreshold          = "DL_UART_RX_FIFO_LEVEL_ONE_ENTRY";
+UART_G.enabledInterrupts        = ["RX"];
+UART_G.peripheral.$assign       = "UART1";
+UART_G.peripheral.txPin.$assign = "PA8";
+UART_G.peripheral.rxPin.$assign = "PA9";
+
+/* ------------------------------------------------------------------ */
+/* 调试串口 UART0：板载 CH340E                                          */
+/* ------------------------------------------------------------------ */
+const UART_D = UART.addInstance();
+UART_D.$name                    = "DEBUG_UART";
+UART_D.targetBaudRate           = 115200;
+UART_D.enableFIFO               = true;
+UART_D.rxFifoThreshold          = "DL_UART_RX_FIFO_LEVEL_ONE_ENTRY";
+UART_D.enabledInterrupts        = ["RX"];
+UART_D.peripheral.$assign       = "UART0";
+UART_D.peripheral.txPin.$assign = "PA10";
+UART_D.peripheral.rxPin.$assign = "PA11";
+
+/* ------------------------------------------------------------------ */
+/* OLED SSD1306：I2C1 400kHz                                           */
+/* ------------------------------------------------------------------ */
+const I2C    = scripting.addModule("/ti/driverlib/I2C", {}, false);
+const I2C_O  = I2C.addInstance();
+I2C_O.$name                     = "OLED_I2C";
+I2C_O.basicEnableController     = true;
+I2C_O.basicControllerBusSpeed   = 400000;
+I2C_O.peripheral.$assign        = "I2C1";
+I2C_O.peripheral.sclPin.$assign = "PB2";
+I2C_O.peripheral.sdaPin.$assign = "PB3";
+
+/* 32MHz 内部时钟，不启用外部晶振 */
+SYSCTL.forceDefaultClkConfig = true;
+SYSCTL.clockTreeEn           = true;
+
+/* 调试口固定为 PA19/PA20（SWD），避免 SysConfig 每次重新求解 */
+const Board = scripting.addModule("/ti/driverlib/Board", {}, false);
+Board.peripheral.$suggestSolution                  = "DEBUGSS";
+Board.peripheral.swclkPin.$suggestSolution         = "PA20";
+Board.peripheral.swdioPin.$suggestSolution         = "PA19";
+
+/**
+ * Pinmux solution（锁定自动求解结果，避免以后版本变化）
+ */
+PWM_M.peripheral.ccp0Pin.$suggestSolution = "PA12";
+PWM_M.peripheral.ccp1Pin.$suggestSolution = "PA13";
