@@ -37,6 +37,7 @@ void SysTick_Handler(void)
     static uint8_t div = 0;
 
     g_ms++;
+    ui_tick_1ms();
     if (++div >= 5) {
         div = 0;
         g_ctrl_tick++;

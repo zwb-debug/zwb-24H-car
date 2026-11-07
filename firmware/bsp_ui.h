@@ -13,7 +13,8 @@
 #define KEY4 0x08
 
 void    ui_init(void);
-void    ui_tick_5ms(void);          /* 5ms 调一次：扫描按键、更新声光 */
+void    ui_tick_1ms(void);          /* 1ms 调一次：蜂鸣器方波/静音 */
+void    ui_tick_5ms(void);          /* 5ms 调一次：扫描按键、更新 LED */
 uint8_t ui_key_pressed(void);       /* 返回并清除“新按下”事件位 */
 uint8_t ui_key_down(void);
 

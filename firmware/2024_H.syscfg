@@ -131,6 +131,7 @@ GPIO5.associatedPins[0].pin.$assign = "PA14";
 GPIO5.associatedPins[1].$name       = "LED2";
 GPIO5.associatedPins[1].pin.$assign = "PA15";
 GPIO5.associatedPins[2].$name       = "BEEP";
+GPIO5.associatedPins[2].direction    = "INPUT";
 GPIO5.associatedPins[2].pin.$assign = "PB24";
 
 GPIO6.$name                                  = "FLASH_GUARD";
