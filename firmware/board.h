@@ -43,9 +43,11 @@
 
 /* ===================== 小车机械参数（必须实测标定） ===================== */
 #define CAR_W_CM            12.0f    /* 左右轮中心距（轮距）               */
-#define WHEEL_D_CM          6.5f     /* 轮径（N20 65mm 轮）                */
-#define GEAR_RATIO          30.0f    /* 减速比 1:30                        */
-#define ENC_PPR             13.0f    /* 电机轴霍尔编码器每转脉冲数          */
+#define WHEEL_D_CM          6.5f     /* 实际轮径；换轮后必须重新标定         */
+/* MG513XP28 的减速比和编码器线数随具体版本变化。下面暂保留原工程值，
+ * 首次上车前必须按电机铭牌/卖家规格修改，否则速度和里程都会错误。 */
+#define GEAR_RATIO          30.0f    /* TODO: MG513XP28 实际减速比          */
+#define ENC_PPR             13.0f    /* TODO: 电机轴编码器每转脉冲数        */
 #define ENC_MULT            4.0f     /* 四倍频                             */
 /* 每 cm 行驶对应的编码器计数 = PPR*4*减速比 / (pi*D) */
 #define ENC_CPR             (ENC_PPR * ENC_MULT * GEAR_RATIO)
@@ -88,13 +90,14 @@
 
 /* ===================== 传感器/执行器标定 ===================== */
 #define IMU_YAW_SIGN        (+1.0f)  /* 车左转 yaw 增大取 +1，否则 -1      */
-#define IMU_BAUD            115200u
-#define IMU_TIMEOUT_MS      200u     /* 超过该时间没收到角度帧 → 报错       */
+#define MPU6050_I2C_ADDR    0x68u    /* AD0 接 GND；AD0 接 VCC 时改为 0x69 */
+#define MPU6050_CAL_SAMPLES 400u     /* 200Hz 下静置约 2s 自动估计零偏      */
+#define IMU_TIMEOUT_MS      100u     /* 超过该时间没读到陀螺仪 → 报错       */
 
 #define PWM_PERIOD          1600.0f  /* TIMG0: 32MHz/1600 = 20kHz          */
 #define DUTY_MAX            1600.0f
 #define DUTY_MIN_MOVE       95.0f    /* 克服静摩擦的最小占空比              */
-#define DUTY_PER_CM_S       14.0f    /* 前馈：每 cm/s 对应占空比            */
+#define DUTY_PER_CM_S       14.0f    /* TODO: MG513XP28 上车后重新标定      */
 
 /* ===================== 控制参数默认值（可串口在线改） ===================== */
 typedef struct {
@@ -104,7 +107,7 @@ typedef struct {
     float turn_kp;               /* 转向 P（cm/s per deg）               */
 } ctrl_gains_t;
 
-#define GAIN_SP_KP_DEF      3.2f
+#define GAIN_SP_KP_DEF      3.2f     /* TODO: MG513XP28 轮速环重新整定      */
 #define GAIN_SP_KI_DEF      18.0f
 #define GAIN_HD_KP_DEF      0.020f
 #define GAIN_HD_KI_DEF      0.0015f

@@ -15,22 +15,18 @@ void gray_init(void)
 
 const gray_t *gray_read(void)
 {
-    uint32_t v = DL_GPIO_readPins(GRAY_PORT,
-        GRAY_CH0_PIN | GRAY_CH1_PIN | GRAY_CH2_PIN | GRAY_CH3_PIN |
-        GRAY_CH4_PIN | GRAY_CH5_PIN | GRAY_CH6_PIN | GRAY_CH7_PIN);
-
     uint8_t raw = 0;
-    if (v & GRAY_CH0_PIN) raw |= 0x01;
-    if (v & GRAY_CH1_PIN) raw |= 0x02;
-    if (v & GRAY_CH2_PIN) raw |= 0x04;
-    if (v & GRAY_CH3_PIN) raw |= 0x08;
-    if (v & GRAY_CH4_PIN) raw |= 0x10;
-    if (v & GRAY_CH5_PIN) raw |= 0x20;
-    if (v & GRAY_CH6_PIN) raw |= 0x40;
-    if (v & GRAY_CH7_PIN) raw |= 0x80;
+    if (DL_GPIO_readPins(GRAY_CH0_PORT, GRAY_CH0_PIN)) raw |= 0x01;
+    if (DL_GPIO_readPins(GRAY_CH1_PORT, GRAY_CH1_PIN)) raw |= 0x02;
+    if (DL_GPIO_readPins(GRAY_CH2_PORT, GRAY_CH2_PIN)) raw |= 0x04;
+    if (DL_GPIO_readPins(GRAY_CH3_PORT, GRAY_CH3_PIN)) raw |= 0x08;
+    if (DL_GPIO_readPins(GRAY_CH4_PORT, GRAY_CH4_PIN)) raw |= 0x10;
+    if (DL_GPIO_readPins(GRAY_CH5_PORT, GRAY_CH5_PIN)) raw |= 0x20;
+    if (DL_GPIO_readPins(GRAY_CH6_PORT, GRAY_CH6_PIN)) raw |= 0x40;
+    if (DL_GPIO_readPins(GRAY_CH7_PORT, GRAY_CH7_PIN)) raw |= 0x80;
 
 #if !GRAY_ACTIVE_HIGH
-    raw = (uint8_t)~raw;
+    raw = (uint8_t)~raw;//判断8路传感器如果是低电平在赛道上还是高电平在赛道上
 #endif
 
     s_g.raw = raw;
@@ -44,10 +40,10 @@ const gray_t *gray_read(void)
         }
     }
     s_g.count = cnt;
-    s_g.on_line = (cnt > 0) ? 1 : 0;
+    s_g.on_line = (cnt > 0) ? 1 : 0;//判断是否正常在线上，如果在线上则cnt=0
     if (cnt > 0) {
         float mean = sum / (float)cnt;
-        s_g.pos_mm = (mean - 3.5f) * GRAY_SPACING_MM;
+        s_g.pos_mm = (mean - 3.5f) * GRAY_SPACING_MM;//3.5f为线性平均值，用它来确定离标准线差距多少
     }
     /* 丢线时保持上一次位置，由控制层判断超时 */
     return &s_g;

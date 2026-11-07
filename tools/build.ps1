@@ -7,7 +7,8 @@
 param(
     [string]$Sdk        = "C:\ti\mspm0_sdk_2_11_00_07",
     [string]$SysConfig  = "",
-    [string]$CcsRoot    = "D:\TI\CCS\ccs"
+    [string]$CcsRoot    = "D:\TI\CCS\ccs",
+    [string]$TiArmClang = ""
 )
 
 $ErrorActionPreference = "Continue"
@@ -31,8 +32,12 @@ if (-not $SysConfig) {
 }
 if (-not $SysConfig) { throw "找不到 sysconfig_cli.bat，请用 -SysConfig 指定" }
 
-$tiarmclang = Find-First @("$CcsRoot\tools\compiler") "tiarmclang.exe"
+$tiarmclang = $TiArmClang
+if (-not $tiarmclang) {
+    $tiarmclang = Find-First @("$CcsRoot\tools\compiler") "tiarmclang.exe"
+}
 if (-not $tiarmclang) { throw "找不到 tiarmclang.exe（CCS 未安装？）" }
+if (-not (Test-Path $tiarmclang)) { throw "找不到指定编译器: $tiarmclang" }
 $tcRoot = Split-Path -Parent (Split-Path -Parent $tiarmclang)
 
 Write-Host "SDK        : $Sdk"

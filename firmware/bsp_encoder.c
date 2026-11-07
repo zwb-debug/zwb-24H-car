@@ -1,8 +1,9 @@
 #include "bsp_encoder.h"
 #include "board.h"
 #include "ti_msp_dl_config.h"
-
+//编码器驱动：读取左右轮脉冲、计算转速和累计里程
 /* 正转计数方向表：idx = (prev<<2)|now, state = A<<1|B */
+
 static const int8_t qtab[16] = {
      0, -1,  1,  0,
      1,  0,  0, -1,
@@ -26,14 +27,14 @@ void encoder_init(void)
     uint32_t v = DL_GPIO_readPins(ENC_PORT, ENC_L_MASK | ENC_R_MASK);
 
     s_state_l = (uint8_t)(((v & ENC_L_A_PIN) ? 2 : 0) |
-                          ((v & ENC_L_B_PIN) ? 1 : 0));
+                          ((v & ENC_L_B_PIN) ? 1 : 0));//有可能获得00 01 10 11四种状态
     s_state_r = (uint8_t)(((v & ENC_R_A_PIN) ? 2 : 0) |
                           ((v & ENC_R_B_PIN) ? 1 : 0));
 
     s_cnt_l = s_cnt_r = 0;
     s_prev_l = s_prev_r = 0;
 
-    NVIC_ClearPendingIRQ(ENC_INT_IRQN);
+    NVIC_ClearPendingIRQ(ENC_INT_IRQN);//设置中断
     NVIC_SetPriority(ENC_INT_IRQN, 0);   /* 编码器最高优先级 */
     NVIC_EnableIRQ(ENC_INT_IRQN);
 }
@@ -46,7 +47,7 @@ void encoder_reset(void)
 
 int32_t encoder_count_l(void) { return s_cnt_l; }
 int32_t encoder_count_r(void) { return s_cnt_r; }
-
+//调取增量计算速度
 void encoder_read_speed(float dt, float *vl, float *vr)
 {
     int32_t cl = s_cnt_l;
@@ -57,7 +58,7 @@ void encoder_read_speed(float dt, float *vl, float *vr)
     s_prev_l = cl;
     s_prev_r = cr;
 
-    *vl = ((float)dl * (float)ENC_L_SIGN) / COUNTS_PER_CM / dt;
+    *vl = ((float)dl * (float)ENC_L_SIGN) / COUNTS_PER_CM / dt;//通过脉冲计算行驶速度（已知1cm距离所需脉冲数目与时间）
     *vr = ((float)dr * (float)ENC_R_SIGN) / COUNTS_PER_CM / dt;
 }
 
@@ -65,10 +66,10 @@ void encoder_read_speed(float dt, float *vl, float *vr)
 void GPIOA_IRQHandler(void)
 {
     uint32_t stat = DL_GPIO_getEnabledInterruptStatus(
-        ENC_PORT, ENC_L_MASK | ENC_R_MASK);
+        ENC_PORT, ENC_L_MASK | ENC_R_MASK);//检查哪个引脚进行了中断
     if (stat == 0) return;
 
-    uint32_t v = DL_GPIO_readPins(ENC_PORT, ENC_L_MASK | ENC_R_MASK);
+    uint32_t v = DL_GPIO_readPins(ENC_PORT, ENC_L_MASK | ENC_R_MASK);//读取引脚数值
 
     uint8_t sl = (uint8_t)(((v & ENC_L_A_PIN) ? 2 : 0) |
                            ((v & ENC_L_B_PIN) ? 1 : 0));
@@ -80,5 +81,5 @@ void GPIOA_IRQHandler(void)
     s_cnt_r += qtab[(s_state_r << 2) | sr];
     s_state_r = sr;
 
-    DL_GPIO_clearInterruptStatus(ENC_PORT, stat);
+    DL_GPIO_clearInterruptStatus(ENC_PORT, stat);//最后全部清零
 }

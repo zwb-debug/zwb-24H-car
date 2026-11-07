@@ -41,6 +41,7 @@ void SysTick_Handler(void)
         div = 0;
         g_ctrl_tick++;
         ui_tick_5ms();
+        imu_tick(CTRL_DT);
         mission_tick();
         control_tick(CTRL_DT);
     }
